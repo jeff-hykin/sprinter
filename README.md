@@ -8,7 +8,7 @@ Designed for piping files, streams, strings
 ## How to use
 
 ```js
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, Append, zipInto, mergeInto, returnIt, } = await import(`https://deno.land/x/sprinter@0.1.1/index.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, Append, zipInto, mergeInto, returnIt, } = await import(`https://deno.land/x/sprinter@0.2.0/index.js`)
 
 
 // runs async
