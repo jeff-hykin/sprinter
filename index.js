@@ -25,7 +25,7 @@ export const Stdout    = (...pathsFilesStreamsOrSymbols)=>[stdoutSymbol, pathsFi
 export const Stderr    = (...pathsFilesStreamsOrSymbols)=>[stderrSymbol, pathsFilesStreamsOrSymbols]
 export const Out       = (...pathsFilesStreamsOrSymbols)=>[stdoutAndErrSymbol, pathsFilesStreamsOrSymbols]
 export const Overwrite = (fileOrFilePath)=>[overwriteSymbol, fileOrFilePath]
-export const Append    = (fileOrFilePath)=>[appendSymbol, fileOrFilePath]
+export const AppendTo  = (fileOrFilePath)=>[appendSymbol, fileOrFilePath]
 
 // 
 // 
@@ -171,8 +171,10 @@ export const run = (...args) => {
                 }
                 ++index
             }
-
-            if (stdinArgs.length == 1 && stdinArgs[0] == null) {
+            
+            if (stdinArgs.length == 0) {
+                runArg.stdin = 'piped'
+            } else if (stdinArgs.length == 1 && stdinArgs[0] == null) {
                 runArg.stdin = 'null'
             } else {
                 // remove all the null's and undefined's
@@ -267,10 +269,10 @@ export const run = (...args) => {
         // outAndError
         if (commandMetaData.outAndError.length > 0) {
             for (const each of outStreamNames) {
-                if (!(runArg[each] instanceof Array)) {
-                    runArg[each] = []
+                if (!(commandMetaData[each] instanceof Array)) {
+                    commandMetaData[each] = []
                 }
-                runArg[each] = runArg[each].concat(commandMetaData.outAndError)
+                commandMetaData[each] = commandMetaData[each].concat(commandMetaData.outAndError)
             }
         }
         // stdin, stdout seperatly
@@ -278,7 +280,9 @@ export const run = (...args) => {
             // if it was given at all
             if (commandMetaData[each] !== undefined) {
                 // special case of Stdin(null) or Stdout(null)
-                if (commandMetaData[each].length == 1 && commandMetaData[each][0] === null) {
+                if (commandMetaData[each].length == 0) {
+                    runArg[each] = 'piped'
+                } else if (commandMetaData[each].length == 1 && commandMetaData[each][0] === null) {
                     runArg[each] = 'null'
                 } else {
                     runArg[each] = 'piped'
@@ -328,7 +332,7 @@ export const run = (...args) => {
                             // go to the end of a file (meaning everthing will be appended)
                             await Deno.seek(value.rid, 0, Deno.SeekMode.End);
                         } else {
-                            throw Error(`\nWhen running command:\n    ${JSON.stringify(runArg.cmd)}\nit was given one of:\n    Stdout(Append(arg))\n    Stdin(Append(arg))\n    Out(Append(arg))\nHowever the given arg was not a string path or a file object.\nHere's what I know about the argument:${debugValueAsString(value)}\n\n`)
+                            throw Error(`\nWhen running command:\n    ${JSON.stringify(runArg.cmd)}\nit was given one of:\n    Stdout(AppendTo(arg))\n    Stdin(AppendTo(arg))\n    Out(AppendTo(arg))\nHowever the given arg was not a string path or a file object.\nHere's what I know about the argument:${debugValueAsString(value)}\n\n`)
                         }
 
                     }
@@ -344,7 +348,7 @@ export const run = (...args) => {
             } else if (isWritable(arg)) {
                 return writableStreamFromWriter(arg)
             } else if (typeof arg == 'string') {
-                throw Error(`\nWhen running command:\n    ${JSON.stringify(runArg.cmd)}\nit was given one of:\n    Stdout(${JSON.stringify(arg)})\n    Stdin(${JSON.stringify(arg)})\n    Out(${JSON.stringify(arg)})\nif you want to have them write to a file:\n    dont:    Out(${JSON.stringify(arg)})\n    instead: Out(Overwrite(${JSON.stringify(arg)}))\n    or:      Out(Append(${JSON.stringify(arg)}))\n\n`)
+                throw Error(`\nWhen running command:\n    ${JSON.stringify(runArg.cmd)}\nit was given one of:\n    Stdout(${JSON.stringify(arg)})\n    Stdin(${JSON.stringify(arg)})\n    Out(${JSON.stringify(arg)})\nif you want to have them write to a file:\n    dont:    Out(${JSON.stringify(arg)})\n    instead: Out(Overwrite(${JSON.stringify(arg)}))\n    or:      Out(AppendTo(${JSON.stringify(arg)}))\n\n`)
             }
         }
         // stdin, stdout seperatly
@@ -376,17 +380,17 @@ export const run = (...args) => {
         // 
         const process = Deno.run(runArg)
         if (commandMetaData.timeout.gentlyBy) {
-            // create a completion check
-            let completion = false
-            process.status().then(()=>completion=true)
+            // create a outcome check
+            let outcome = false
+            process.status().then(()=>outcome=true)
             // schedule a suggested stop time
             setTimeout(async () => {
-                if (!completion) {
+                if (!outcome) {
                     // ask it to please stop
                     process.kill("SIGINT")
                     // and schedule it's death
                     setTimeout(()=>{
-                        if (!completion) {
+                        if (!outcome) {
                             process.kill("SIGKILL")
                         }
                     }, commandMetaData.timeout.waitBeforeUsingForce)
@@ -503,7 +507,7 @@ export const run = (...args) => {
         if (returnStream) {
             processFinishedValue = statusPromise.then(async ()=>{
                 const returnReader = returnStream.getReader()
-                const { value } = await returnStream.getReader().read()
+                const { value } = await returnReader.read()
                 const string = new TextDecoder().decode(value)
                 return string
             })
@@ -537,19 +541,36 @@ export const run = (...args) => {
     const statusPromise      = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => statusPromise)
     const returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue)
     Object.defineProperties(returnValuePromise, {
-        status:     { get(){ return syncStatus                                                                           } },
-        isDone:     { get(){ return syncStatus.done                                                                      } },
-        sendSignal: { get(){ return (...args)=>processPromise.then(({kill})=>kill(...args))                              } },
+        status:     { get(){ return syncStatus      } },
+        isDone:     { get(){ return syncStatus.done } },
+        sendSignal: { get(){ return (         ...args)=>processPromise.then((process)=>process.kill(...args) ).catch(error=>error) } },
+        kill:       { get(){ return (signal="SIGKILL")=>processPromise.then((process)=>process.kill(signal)  ) } },
+        close:      { get(){ return (         ...args)=>processPromise.then((process)=>process.close(...args)) } },
         success:    { get(){ return statusPromise.then(({success})=>success) } },
         exitCode:   { get(){ return statusPromise.then(({code})=>code)       } },
-        completion: { get(){ return statusPromise                            } },
-        kill:       { get(){ return processPromise.then((process  )=>(signal="SIGKILL")=>process.kill(signal)    ) } },
-        close:      { get(){ return processPromise.then((process  )=>(...args)=>process.close(...args)           ) } },
+        outcome:    { get(){ return statusPromise                            } },
         rid:        { get(){ return processPromise.then(({rid    })=>rid                                         ) } },
         pid:        { get(){ return processPromise.then(({pid    })=>pid                                         ) } },
-        stdin:      { get(){ return processPromise.then(({stdin  })=>stdin||Deno.stdin                           ) } },
         stdout:     { get(){ return processPromise.then(({stdout })=>stdout||Deno.stdout                         ) } },
         stderr:     { get(){ return processPromise.then(({stderr })=>stderr||Deno.stderr                         ) } },
+        stdin:      { 
+            get(){
+                const realStdinPromise = processPromise.then(({stdin})=>stdin||Deno.stdin)
+                return {
+                    send(rawDataOrString) {
+                        if (typeof rawDataOrString == 'string') {
+                            return {...realStdinPromise.then(realStdin=>(realStdin.write(new TextEncoder().encode(rawDataOrString)))), ...this}
+                        // assume its raw data
+                        } else {
+                            return {...realStdinPromise.then(realStdin=>(realStdin.write(rawDataOrString))), ...this}
+                        }
+                    },
+                    close(...args) {
+                        return realStdinPromise.then((realStdin)=>(realStdin.close(...args),this))
+                    }
+                }
+            }
+        },
     })
     return returnValuePromise
 }
