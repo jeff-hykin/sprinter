@@ -1,9 +1,12 @@
-# Sprinter
+# Sprinter - Beta
 
 Replace bash scripts with Deno!
 
-Designed for piping files, streams, strings 
+Designed for piping files, streams, strings
 
+## Stability:
+
+This is only the initial mostly-untested version. The readme will get a makeover once a test suite has been established. PR's, feedback, and feature requests welcome. 
 
 ## How to use
 
@@ -78,8 +81,6 @@ setTimeout(() => {
 }, 100)
 
 ```
-
-
 
 ToDo: 
 - Allow direct passing of one process.stdout to another commands Stdin() without AppendTo
