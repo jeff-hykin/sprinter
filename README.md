@@ -14,7 +14,7 @@ const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo,
 // runs async
 run("echo", "hello")
 
-// wait for a command
+// wait for a command to finish
 await run("echo", "hello")
 
 // get outcome
