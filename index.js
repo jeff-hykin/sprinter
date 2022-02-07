@@ -13,9 +13,9 @@ const stderrSymbol       = Symbol("stderr")
 const stdoutAndErrSymbol = Symbol("stdoutAndErr")
 const overwriteSymbol    = Symbol("overwrite")
 const appendSymbol       = Symbol("append")
-export const zipInto   = Symbol("zipInto")
-export const mergeInto = Symbol("mergeInto")
-export const returnIt  = Symbol("returnIt")
+export const zipInto        = Symbol("zipInto")
+export const mergeInto      = Symbol("mergeInto")
+export const returnAsString = Symbol("returnAsString")
 const asString  = Symbol("asString") // TODO: integrate this as a feature (returns { stdout: "blh", stderr: "bal", output: "blhbal" })
 export const Timeout   = ({gentlyBy, waitBeforeUsingForce})=>[timeoutSymbol, {gentlyBy, waitBeforeUsingForce}]
 export const Env       = (envVars)=>[envSymbol, envVars]
@@ -293,7 +293,7 @@ export const run = (...args) => {
         }
         const convertReturnStreamArg = async (arg) => {
             // save this kind of arg for later
-            if (arg === returnIt) {
+            if (arg === returnAsString) {
                 return arg
             }
             // if [symbol, data], convert data to file
@@ -469,8 +469,8 @@ export const run = (...args) => {
                     sourceStream = stderrStreams.pop()
                 }
 
-                // pipe it to the correct thing (returnIt is the only special case)
-                if (eachStreamArg === returnIt) {
+                // pipe it to the correct thing (returnAsString is the only special case)
+                if (eachStreamArg === returnAsString) {
                     returnStream = sourceStream
                 } else {
                     // every stream arg should be a writable stream by this point
@@ -587,4 +587,4 @@ run.Overwrite = Overwrite
 run.AppendTo = AppendTo
 run.zipInto = zipInto
 run.mergeInto = mergeInto
-run.returnIt = returnIt
+run.returnAsString = returnAsString

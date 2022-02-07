@@ -1,5 +1,5 @@
 #!/usr/bin/env -S deno run --allow-all
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnIt, } = await import(`./index.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`./index.js`)
 const { debugValueAsString } = await import("./dapper-debugger.js")
 
 // runs async
@@ -25,7 +25,7 @@ stdin.send(new TextEncoder().encode("Bang Bang\n"))
 await stdin.close()
 
 // get output string as return value
-const pathToGrep = await run("which", "grep", Out(returnIt))
+const pathToGrep = await run("which", "grep", Out(returnAsString))
 console.debug(`pathToGrep is:`,pathToGrep)
 
 // append to a file (give a path or a Deno file object)

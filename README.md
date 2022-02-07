@@ -11,7 +11,7 @@ This is only the initial mostly-untested version. The readme will get a makeover
 ## How to use
 
 ```js
-import { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnIt, } from "https://deno.land/x/sprinter@0.2.2/index.js"
+import { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } from "https://deno.land/x/sprinter@0.2.2/index.js"
 
 
 // runs async
@@ -37,7 +37,7 @@ stdin.send(new TextEncoder().encode("Bang Bang\n"))
 await stdin.close()
 
 // get output string as return value
-const pathToGrep = await run("which", "grep", Out(returnIt))
+const pathToGrep = await run("which", "grep", Out(returnAsString))
 console.debug(`pathToGrep is:`,pathToGrep)
 
 // append to a file (give a path or a Deno file object)
