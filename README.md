@@ -1,9 +1,12 @@
-# Sprinter
+# Sprinter - Beta
 
 Replace bash scripts with Deno!
 
-Designed for piping files, streams, strings 
+Designed for piping files, streams, strings
 
+## Stability:
+
+This is only the initial mostly-untested version. The readme will get a makeover once a test suite has been established. PR's, feedback, and feature requests welcome. 
 
 ## How to use
 
@@ -14,7 +17,7 @@ import { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo
 // runs async
 run("echo", "hello")
 
-// wait for a command
+// wait for a command to finish
 await run("echo", "hello")
 
 // get outcome
@@ -79,9 +82,7 @@ setTimeout(() => {
 
 ```
 
-
-
 ToDo: 
-- Allow direct passing of one process.stdout to another commands Stdin()
+- Allow direct passing of one process.stdout to another commands Stdin() without AppendTo
 - Allow stdin.send() to accept files and streams as input
 - Add a callback for incrementally getting string data out of stdout/stderr
