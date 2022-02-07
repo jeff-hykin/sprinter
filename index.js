@@ -574,3 +574,17 @@ export const run = (...args) => {
     })
     return returnValuePromise
 }
+
+// namespace everything
+run.Timeout = Timeout
+run.Env = Env
+run.Cwd = Cwd
+run.Stdin = Stdin
+run.Stdout = Stdout
+run.Stderr = Stderr
+run.Out = Out
+run.Overwrite = Overwrite
+run.AppendTo = AppendTo
+run.zipInto = zipInto
+run.mergeInto = mergeInto
+run.returnIt = returnIt
