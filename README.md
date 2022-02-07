@@ -82,6 +82,6 @@ setTimeout(() => {
 
 
 ToDo: 
-- Allow direct passing of one process.stdout to another commands Stdin()
+- Allow direct passing of one process.stdout to another commands Stdin() without AppendTo
 - Allow stdin.send() to accept files and streams as input
 - Add a callback for incrementally getting string data out of stdout/stderr
