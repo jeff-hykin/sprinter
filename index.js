@@ -326,11 +326,12 @@ export const run = (...args) => {
                             await FileSystem.clearAPathFor(value)
                             // convert string to a folder
                             value = await Deno.open(value, {write: true, create: true})
+                            // FIXME: this file never gets closed! it needs to be, but only if it was opened here
                         }
                         
                         if (value instanceof Deno.File) {
                             // go to the end of a file (meaning everthing will be appended)
-                            await Deno.seek(value.rid, 0, Deno.SeekMode.End);
+                            await Deno.seek(value.rid, 0, Deno.SeekMode.End)
                         } else {
                             throw Error(`\nWhen running command:\n    ${JSON.stringify(runArg.cmd)}\nit was given one of:\n    Stdout(AppendTo(arg))\n    Stdin(AppendTo(arg))\n    Out(AppendTo(arg))\nHowever the given arg was not a string path or a file object.\nHere's what I know about the argument:${debugValueAsString(value)}\n\n`)
                         }
