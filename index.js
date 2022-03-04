@@ -1,6 +1,6 @@
 const { readableStreamFromReader, writableStreamFromWriter } = await import(`https://deno.land/std@0.121.0/streams/conversion.ts`)
 const { zipReadableStreams, mergeReadableStreams } = await import("https://deno.land/std@0.121.0/streams/merge.ts")
-const { StringReader } = await import("https://deno.land/std/io/mod.ts")
+const { StringReader } = await import("https://deno.land/std@0.128.0/io/mod.ts")
 const Path = await import("https://deno.land/std@0.117.0/path/mod.ts")
 const { debugValueAsString } = await import("./dapper-debugger.js")
 
