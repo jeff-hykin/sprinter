@@ -13,6 +13,7 @@ const stderrSymbol       = Symbol("stderr")
 const stdoutAndErrSymbol = Symbol("stdoutAndErr")
 const overwriteSymbol    = Symbol("overwrite")
 const appendSymbol       = Symbol("append")
+export const throwIfFails = Symbol("throwIfFails")
 export const zipInto        = Symbol("zipInto")
 export const mergeInto      = Symbol("mergeInto")
 export const returnAsString = Symbol("returnAsString")
@@ -96,6 +97,11 @@ export const run = (...args) => {
         outAndError: [],
     }
     for (const each of args) {
+        if (typeof each == 'symbol') {
+            if (each == throwIfFails) {
+                commandMetaData.throwIfFails = true
+            }
+        }
         if (each instanceof Array && typeof each[0] == 'symbol') {
             const [symbol, value] = each
             if (symbol === timeoutSymbol     ) { Object.assign(commandMetaData.timeout, value)}
@@ -496,15 +502,15 @@ export const run = (...args) => {
         // 
         // update the syncStatus when process done
         // 
-        process.status().then(({code, success})=>{
+        let statusPromise = process.status()
+        statusPromise.then(({code, success})=>{
             syncStatus.done = true
             syncStatus.exitCode = code
             syncStatus.success = success
         })
         
-        let statusPromise = process.status()
-        let processFinishedValue
         // await string
+        let processFinishedValue
         if (returnStream) {
             processFinishedValue = statusPromise.then(async ()=>{
                 const returnReader = returnStream.getReader()
@@ -532,12 +538,22 @@ export const run = (...args) => {
             })
         }
 
-        return [process, processFinishedValue, statusPromise]
+        const returnValueOrError = new Promise(async (resolve, reject)=>{
+            if (commandMetaData.throwIfFails) {
+                const status = await statusPromise
+                if (!status.success) {
+                    reject(await processFinishedValue)
+                    return
+                }
+            }
+            resolve(processFinishedValue)
+        })
+        return [ process, returnValueOrError, statusPromise, ]
     }
     // 
     // this is done to prevent the ugly (await (await run()).success()) syntax
     // 
-    const asyncPartPromise = asyncPart()
+    const asyncPartPromise = commandMetaData.throwIfFails ? asyncPart() : asyncPart().catch(err=>{console.warn(err);return [{},{success: false, err},{}]})
     const processPromise     = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => process)
     const statusPromise      = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => statusPromise)
     const returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue)
