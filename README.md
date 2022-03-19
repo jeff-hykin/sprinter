@@ -11,7 +11,7 @@ This is only the initial mostly-untested version. The readme will get a makeover
 ## How to use
 
 ```js
-import { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, throwIfFails, returnAsString, zipInto, mergeInto, hasCommand } from "https://deno.land/x/sprinter@0.3.4/index.js"
+import { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, throwIfFails, returnAsString, zipInto, mergeInto, hasCommand } from "https://deno.land/x/sprinter@0.3.5/index.js"
 
 
 // runs async
