@@ -4,10 +4,9 @@ const { StringReader } = await import("https://deno.land/std@0.128.0/io/mod.ts")
 const Path = await import("https://deno.land/std@0.117.0/path/mod.ts")
 const { debugValueAsString } = await import("./dapper-debugger.js")
 
+export const asString       = Symbol("asString")
 export const zipInto        = Symbol("zipInto")
 export const mergeInto      = Symbol("mergeInto")
-export const returnAsString = Symbol("returnAsString")
-const asString  = Symbol("asString") // TODO: integrate this as a feature (returns { stdout: "blh", stderr: "bal", output: "blhbal" })
 
 // 
 // 
@@ -67,12 +66,19 @@ const awaitAll = async (array)=>{
     return newArray
 }
 
+const streamToString = async (stream) => {
+    const reader = stream.getReader()
+    const { value } = await reader.read()
+    const string = new TextDecoder().decode(value)
+    return string
+}
+
 // 
 // 
 // Main
 // 
 // 
-export class Task extends Promise {
+export class Process extends Promise {
     constructor(...command) {
         super(()=>0)
         // 
@@ -83,11 +89,11 @@ export class Task extends Promise {
             cwd: undefined,
             env: undefined,
             timeout: {},
+            stdin: [],
+            stdout: [],
+            stderr: [],
+            out: [],
         }
-        this.stdinArgs  = []
-        this.stdoutArgs = []
-        this.stderrArgs = []
-        this.outArgs    = []
         this.wasGivenManually = {
             env: false,
             cwd: false,
@@ -96,84 +102,20 @@ export class Task extends Promise {
             stderr: false,
             out: false,
         }
+        this.asString = {
+            stdout: false,
+            stderr: false,
+            out: false,
+        }
         this.syncStatus = { done: false, exitCode: undefined, success: undefined }
         
-        // 
-        // temp methods
-        // 
-            this.cwd = function(newCwd) {
-                this.wasGivenManually.cwd = true
-                this.data.cwd = newCwd
-                return this
-            }
-            this.env = function(newEnv) {
-                this.wasGivenManually.env = true
-                this.data.env = newEnv
-                return this
-            }
-            this.stdin = function(...args) {
-                this.wasGivenManually.stdin = true
-                this.stdinArgs = args
-                return this
-            }
-            this.stdout = function(...args) {
-                this.wasGivenManually.stdout = true
-                this.stdoutArgs = args
-                return this
-            }
-            this.stderr = function(...args) {
-                this.wasGivenManually.stderr = true
-                this.stderrArgs = args
-                return this
-            }
-            this.out = function(...args) {
-                this.wasGivenManually.out = true
-                this.outArgs = args
-                return this
-            }
-            this.timeout = function({gentlyBy, waitBeforeUsingForce}) {
-                this.wasGivenManually.timeout = true
-                this.data.timeout = {gentlyBy, waitBeforeUsingForce}
-                return this
-            }
         // 
         // setup the deno process
         // 
         this.process = new Promise( (resolve, reject)=>setTimeout(async () => {
-            // change this object to have many different properties after the process is triggered
-            Object.defineProperties(this, {
-                isDone:     { get(){ return this.syncStatus.done } },
-                sendSignal: { get(){ return (         ...args)=>this.process.then((process)=>process.kill(...args) ).catch(error=>error) } },
-                kill:       { get(){ return (signal="SIGKILL")=>this.process.then((process)=>process.kill(signal)  ) } },
-                close:      { get(){ return (         ...args)=>this.process.then((process)=>process.close(...args)) } },
-                success:    { get(){ return this.outcomePromise.then(({success})=>success) } },
-                exitCode:   { get(){ return this.outcomePromise.then(({code})=>code)       } },
-                outcome:    { get(){ return this.outcomePromise                            } },
-                rid:        { get(){ return this.process.then(({rid    })=>rid                                         ) } },
-                pid:        { get(){ return this.process.then(({pid    })=>pid                                         ) } },
-                stdout:     { get(){ return this.process.then(({stdout })=>stdout||Deno.stdout                         ) } },
-                stderr:     { get(){ return this.process.then(({stderr })=>stderr||Deno.stderr                         ) } },
-                stdin:      { 
-                    get(){
-                        const realStdinPromise = this.process.then(({stdin})=>stdin||Deno.stdin)
-                        return {
-                            send(rawDataOrString) {
-                                if (typeof rawDataOrString == 'string') {
-                                    return {...realStdinPromise.then(realStdin=>(realStdin.write(new TextEncoder().encode(rawDataOrString)))), ...this}
-                                // assume its raw data
-                                } else {
-                                    return {...realStdinPromise.then(realStdin=>(realStdin.write(rawDataOrString))), ...this}
-                                }
-                            },
-                            close(...args) {
-                                return realStdinPromise.then((realStdin)=>(realStdin.close(...args),this))
-                            }
-                        }
-                    }
-                },
-            })
-
             try {
+                console.debug(`this.wasGivenManually is:`,this.wasGivenManually)
+                console.debug(`this.data is:`,this.data)
                 // this is going to be given to deno as an arg
                 this.runArg = {
                     cwd: undefined,
@@ -183,8 +125,6 @@ export class Task extends Promise {
                     stdout: undefined,
                     stderr: undefined,
                 }
-
-
 
                 // 
                 // 
@@ -229,7 +169,7 @@ export class Task extends Promise {
                 // handle stdin (pre-start)
                 // 
                 let stdinWriter = undefined
-                let stdinArgs = await awaitAll(this.stdinArgs)
+                let stdinArgs = await awaitAll(this.data.stdin)
                 // default value (Deno.stdin)
                 if (!this.wasGivenManually.stdin) {
                     this.runArg.stdin = undefined
@@ -325,31 +265,36 @@ export class Task extends Promise {
                     }
                 }
                 
-                // 
+                //
                 // handle stdout & stderr (pre-start)
-                // 
-                const outStreamNames = [ 'stdoutArgs', 'stderrArgs' ]
+                //
+                // mark for string output
+                for (const eachStream of [ 'stderr', 'stdout', 'out']) {
+                    if (this.data[eachStream].includes(asString)) {
+                        this.asString[eachStream] = true
+                    }
+                }
                 // 
                 // set this.runArg for stdout/stderr
                 // 
-                for (const eachStreamName of outStreamNames) {
+                for (const eachStreamName of [ 'stdout', 'stderr' ]) {
                     // add combined-out to each individual stream
-                    this[eachStreamName] = [...this[eachStreamName], ...this.outArgs]
+                    this.data[eachStreamName] = [...this.data[eachStreamName], ...this.data.out]
 
                     // default to Deno.stdout/Deno.stderr
                     if (!this.wasGivenManually[eachStreamName] && !this.wasGivenManually.out) {
                         this.runArg[eachStreamName] = undefined
                     // pipe to a variable
-                    } else if (this[eachStreamName].length == 0) {
+                    } else if (this.data[eachStreamName].length == 0) {
                         this.runArg[eachStreamName] = 'piped'
                     // null (/dev/null)
-                    } else if (this[eachStreamName].length == 1 && this[eachStreamName][0] === null) {
+                    } else if (this.data[eachStreamName].length == 1 && this.data[eachStreamName][0] === null) {
                         this.runArg[eachStreamName] = 'null'
                     // actually pipe to something (file, stream, etc)
                     } else {
                         this.runArg[eachStreamName] = 'piped'
                         // note: surprisingly Sets in ES6 are guarenteed to preserve order, so this only removes null's undefines, and duplicates
-                        this[eachStreamName] = [ ... new Set(this[eachStreamName].filter(eachArg=>eachArg!=null))]
+                        this.data[eachStreamName] = [ ... new Set(this.data[eachStreamName].filter(eachArg=>eachArg!=null))]
                     }
                 }
                 // 
@@ -357,7 +302,7 @@ export class Task extends Promise {
                 // 
                 const convertReturnStreamArg = async (arg) => {
                     // dont convert this kind of arg (save for later by returning it)
-                    if (arg === returnAsString) {
+                    if (arg === asString) {
                         return arg
                     }
                     
@@ -410,8 +355,9 @@ export class Task extends Promise {
                     }
                 }
                 let alreadyComputed = new Map()
-                for (const eachStream of outStreamNames) {
-                    this[eachStream] = await awaitAll(this[eachStream].map(eachArg=>{
+                console.debug(`before converting out:`,this.data)
+                for (const eachStream of [ 'stdout', 'stderr' ]) {
+                    this.data[eachStream] = await awaitAll(this.data[eachStream].map(eachArg=>{
                         if (alreadyComputed.has(eachArg)) {
                             return alreadyComputed.get(eachArg)
                         } else {
@@ -419,6 +365,7 @@ export class Task extends Promise {
                         }
                     }))
                 }
+                console.debug(`after converting out:`,this.data)
                 
                 // 
                 // 
@@ -437,8 +384,8 @@ export class Task extends Promise {
         // handle output for return value
         //
         this.returnValue = this.process.then(async (process)=>{
-            let stdoutArgs = this.stdoutArgs
-            let stderrArgs = this.stderrArgs
+            let stdoutArgs = this.data.stdout
+            let stderrArgs = this.data.stderr
 
             if (this.data.timeout.gentlyBy) {
                 // create a outcome check
@@ -463,6 +410,7 @@ export class Task extends Promise {
             // handle stdout/stderr
             // 
             let returnStream = undefined
+            console.debug(`this.runArg is:`,this.runArg)
             if (this.runArg.stdout == 'piped' || this.runArg.stderr == 'piped') {
                 // 
                 // NOTE: this process is kind of complicated because of checking
@@ -519,25 +467,34 @@ export class Task extends Promise {
                 // convert/connect all to streams
                 // 
                 for (const eachStreamArg of [...new Set(stdoutArgs.concat(stderrArgs))]) {
-                    let sourceStream
                     const wasNeededByStdout = neededByStdout.get(eachStreamArg)
+                    const wasNeededByStderr = neededByStderr.get(eachStreamArg)
+                    let sourceStreamCopy
                     // needed by both
-                    if (wasNeededByStdout && neededByStderr.get(eachStreamArg)) {
-                        sourceStream = zipReadableStreams(stdoutStreams.pop(), stderrStreams.pop())
+                    if (wasNeededByStdout && wasNeededByStderr) {
+                        sourceStreamCopy = zipReadableStreams(stdoutStreams.pop(), stderrStreams.pop())
+                        if (eachStreamArg == asString) {
+                            this.asString.out = sourceStreamCopy
+                        }
                     // needed by only stdout
                     } else if (wasNeededByStdout) {
-                        sourceStream = stdoutStreams.pop()
+                        sourceStreamCopy = stdoutStreams.pop()
+                        if (eachStreamArg == asString) {
+                            this.asString.stdout = sourceStreamCopy
+                        }
                     // needed by only stderr
                     } else {
-                        sourceStream = stderrStreams.pop()
+                        sourceStreamCopy = stderrStreams.pop()
+                        if (eachStreamArg == asString) {
+                            this.asString.stderr = sourceStreamCopy
+                        }
                     }
-
-                    // pipe it to the correct thing (returnAsString is the only special case)
-                    if (eachStreamArg === returnAsString) {
-                        returnStream = sourceStream
-                    } else {
+                    
+                    // aka: if arg is a stream
+                    if (eachStreamArg !== asString) {
+                        // pipe it to the correct thing
                         // every stream arg should be a writable stream by this point
-                        sourceStream.pipeTo(eachStreamArg)
+                        sourceStreamCopy.pipeTo(eachStreamArg)
                     }
                 }
             }
@@ -562,51 +519,139 @@ export class Task extends Promise {
             this.syncStatus.done = true
             this.syncStatus.exitCode = outcome.code
             this.syncStatus.success = outcome.success
-            
-            let processFinishedValue
-            // await string
-            if (returnStream) {
-                const returnReader = returnStream.getReader()
-                const { value } = await returnReader.read()
-                const string = new TextDecoder().decode(value)
-                return string
-            // await object
+            const output = {
+                isDone:     true,
+                status:     this.syncStatus,
+                sendSignal: ()=>0,
+                outcome:    outcome,
+                success:    outcome.success,
+                exitCode:   outcome.code,
+                pid:        process.pid,
+                rid:        process.rid,
+                kill:       ()=>0,
+                close:      process.close,
+                stdin:      this.runArg.stdin=='null' ? null : (process.stdin || Deno.stdin),
+                stdout: this.asString.stdout ? await streamToString(this.asString.stdout) : (process.stdout || Deno.stdout),
+                stderr: this.asString.stderr ? await streamToString(this.asString.stderr) : (process.stderr || Deno.stderr),
+                out:    this.asString.out ? await streamToString(this.asString.out) : undefined,
+            }
+            if (typeof this.returnKey == 'string') {
+                return output[this.returnKey]
             } else {
-                return {
-                    isDone:     true,
-                    status:     this.syncStatus,
-                    sendSignal: ()=>0,
-                    success:    outcome.success,
-                    exitCode:   outcome.code,
-                    pid:        process.pid,
-                    rid:        process.rid,
-                    kill:       ()=>0,
-                    close:      process.close,
-                    stdin:      this.runArg.stdin=='null' ? null : (process.stdin || Deno.stdin),
-                    stdout:     process.stdout || Deno.stdout,
-                    stderr:     process.stderr || Deno.stderr,
-                }
+                return output
             }
         })
     }
     then(...args) {
         return this.returnValue.then(...args)
     }
-    
+    catch(...args) {
+        return this.returnValue.catch(...args)
+    }
+    finally(...args) {
+        return this.returnValue.finally(...args)
+    }
+    returnKey(key) {
+        this.returnKey = key
+        return this
+    }
+    cwd(newCwd) {
+        this.wasGivenManually.cwd = true
+        this.data.cwd = newCwd
+        return this
+    }
+    env(newEnv) {
+        this.wasGivenManually.env = true
+        this.data.env = newEnv
+        return this
+    }
+    stdin(...args) {
+        this.wasGivenManually.stdin = true
+        this.data.stdin = args
+        return this
+    }
+    stdout(...args) {
+        console.debug(`args is:`,args)
+        this.wasGivenManually.stdout = true
+        this.data.stdout = args
+        return this
+    }
+    stderr(...args) {
+        this.wasGivenManually.stderr = true
+        this.data.stderr = args
+        return this
+    }
+    out(...args) {
+        this.wasGivenManually.out = true
+        this.data.out = args
+        return this
+    }
+    timeout({gentlyBy, waitBeforeUsingForce}) {
+        this.wasGivenManually.timeout = true
+        this.data.timeout = {gentlyBy, waitBeforeUsingForce}
+        return this
+    }
+
     // TODO:
-        // status
-        // isDone
         // sendSignal
-        // kill
-        // close
-        // success
-        // exitCode
-        // outcome
-        // rid
-        // pid
-        // stdout
-        // stderr
-        // stdin
+        // send
+        // 
+
+    static run(...command) {
+        return (new Process(...command)).process
+    }
+    static outcome(...command) {
+        return (new Process(...command)).returnKey("outcome")
+    }
+    static success(...command) {
+        return (new Process(...command)).returnKey("success")
+    }
+    static exitCode(...command) {
+        return (new Process(...command)).returnKey("exitCode")
+    }
+    static stdin(...command) {
+        return (new Process(...command)).returnKey("stdin")
+    }
+    static stdout(...command) {
+        return (new Process(...command)).returnKey("stdout")
+    }
+    static stderr(...command) {
+        return (new Process(...command)).returnKey("stderr")
+    }
+    static out(...command) {
+        return (new Process(...command)).returnKey("out")
+    }
 }
 
-const run = (...command) => new Task()
+
+// Object.defineProperties(run, {
+//     isDone:     { get(){ return this.syncStatus.done } },
+//     sendSignal: { get(){ return (         ...args)=>this.process.then((process)=>process.kill(...args) ).catch(error=>error) } },
+//     kill:       { get(){ return (signal="SIGKILL")=>this.process.then((process)=>process.kill(signal)  ) } },
+//     close:      { get(){ return (         ...args)=>this.process.then((process)=>process.close(...args)) } },
+//     success:    { get(){ return this.outcomePromise.then(({success})=>success) } },
+//     exitCode:   { get(){ return this.outcomePromise.then(({code})=>code)       } },
+//     outcome:    { get(){ return this.outcomePromise                            } },
+//     rid:        { get(){ return this.process.then(({rid    })=>rid                                         ) } },
+//     pid:        { get(){ return this.process.then(({pid    })=>pid                                         ) } },
+//     stdout:     { get(){ return this.process.then(({stdout })=>stdout||Deno.stdout                         ) } },
+//     stderr:     { get(){ return this.process.then(({stderr })=>stderr||Deno.stderr                         ) } },
+//     stdin:      { 
+//         get(){
+//             const realStdinPromise = this.process.then(({stdin})=>stdin||Deno.stdin)
+//             return {
+//                 send(rawDataOrString) {
+//                     if (typeof rawDataOrString == 'string') {
+//                         return {...realStdinPromise.then(realStdin=>(realStdin.write(new TextEncoder().encode(rawDataOrString)))), ...this}
+//                     // assume its raw data
+//                     } else {
+//                         return {...realStdinPromise.then(realStdin=>(realStdin.write(rawDataOrString))), ...this}
+//                     }
+//                 },
+//                 close(...args) {
+//                     return realStdinPromise.then((realStdin)=>(realStdin.close(...args),this))
+//                 }
+//             }
+//         }
+//     },
+// })
