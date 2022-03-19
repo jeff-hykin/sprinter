@@ -44,16 +44,9 @@ const concatUint8Arrays = (arrays) => new Uint8Array( // simplified from: https:
         arrays.reduce((acc, curr) => (acc.push(...curr),acc), [])
     )
 
-export const hasCommand = async (commandName) => {
-    try {
-        await Deno.run({cmd:[commandName]})
-    } catch (error) {
-        if (error.message == "No such file or directory (os error 2)") {
-            return false
-        }
-    }
-    return true
-}
+// TODO: add this once deno supports it
+// export const hasCommand = async (commandName) => {
+// }
 
 const FileSystem = {
     info: async (fileOrFolder) => {
