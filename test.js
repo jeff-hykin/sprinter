@@ -1,5 +1,5 @@
 #!/usr/bin/env -S deno run --allow-all
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`./index.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, throwIfFails, hasCommand } = await import(`./index.js`)
 const { debugValueAsString } = await import("./dapper-debugger.js")
 
 // runs async

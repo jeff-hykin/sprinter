@@ -48,7 +48,7 @@ export const hasCommand = async (commandName) => {
     try {
         await run(commandName, throwIfFails)
     } catch (error) {
-        if (error.message = "No such file or directory (os error 2)") {
+        if (error.message == "No such file or directory (os error 2)") {
             return false
         }
     }
