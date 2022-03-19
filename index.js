@@ -44,6 +44,17 @@ const concatUint8Arrays = (arrays) => new Uint8Array( // simplified from: https:
         arrays.reduce((acc, curr) => (acc.push(...curr),acc), [])
     )
 
+export const hasCommand = async (commandName) => {
+    try {
+        await run(commandName, throwIfFails)
+    } catch (error) {
+        if (error.message = "No such file or directory (os error 2)") {
+            return false
+        }
+    }
+    return true
+}
+
 const FileSystem = {
     info: async (fileOrFolder) => {
         const result1 = await Deno.lstat(fileOrFolder).catch(()=>({doesntExist: true}))
