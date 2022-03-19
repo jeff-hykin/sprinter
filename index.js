@@ -46,7 +46,7 @@ const concatUint8Arrays = (arrays) => new Uint8Array( // simplified from: https:
 
 export const hasCommand = async (commandName) => {
     try {
-        await run(commandName, throwIfFails)
+        await Deno.run({cmd:[commandName]})
     } catch (error) {
         if (error.message == "No such file or directory (os error 2)") {
             return false
@@ -564,10 +564,11 @@ export const run = (...args) => {
     // 
     // this is done to prevent the ugly (await (await run()).success()) syntax
     // 
-    const asyncPartPromise = asyncPart()
+    let returnValuePromise
+    const asyncPartPromise = asyncPart().catch(err=>returnValuePromise=err)
     const processPromise     = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => process)
     const statusPromise      = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => statusPromise)
-    const returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue)
+    returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue)
     Object.defineProperties(returnValuePromise, {
         status:     { get(){ return syncStatus      } },
         isDone:     { get(){ return syncStatus.done } },
