@@ -564,7 +564,7 @@ export const run = (...args) => {
     // 
     // this is done to prevent the ugly (await (await run()).success()) syntax
     // 
-    const asyncPartPromise = commandMetaData.throwIfFails ? asyncPart() : asyncPart().catch(err=>{console.warn(err);return [{},{success: false, err},{}]})
+    const asyncPartPromise = asyncPart()
     const processPromise     = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => process)
     const statusPromise      = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => statusPromise)
     const returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue)
