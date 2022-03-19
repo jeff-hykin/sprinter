@@ -567,7 +567,7 @@ export const run = (...args) => {
     const asyncPartPromise = asyncPart()
     const processPromise     = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => process).catch((err)=>err)
     const statusPromise      = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => statusPromise).catch((err)=>err)
-    const returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue).catch(err=>err)
+    const returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue)
     Object.defineProperties(returnValuePromise, {
         status:     { get(){ return syncStatus      } },
         isDone:     { get(){ return syncStatus.done } },
