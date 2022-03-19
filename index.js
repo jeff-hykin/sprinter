@@ -564,11 +564,10 @@ export const run = (...args) => {
     // 
     // this is done to prevent the ugly (await (await run()).success()) syntax
     // 
-    let returnValuePromise
-    const asyncPartPromise = asyncPart().catch(err=>returnValuePromise=err)
-    const processPromise     = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => process)
-    const statusPromise      = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => statusPromise)
-    returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue)
+    const asyncPartPromise = asyncPart()
+    const processPromise     = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => process).catch((err)=>err)
+    const statusPromise      = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => statusPromise).catch((err)=>err)
+    const returnValuePromise = asyncPartPromise.then(([process, processFinishedValue, statusPromise]) => processFinishedValue).catch(err=>err)
     Object.defineProperties(returnValuePromise, {
         status:     { get(){ return syncStatus      } },
         isDone:     { get(){ return syncStatus.done } },
