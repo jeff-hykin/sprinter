@@ -43,6 +43,19 @@ const isWritable = (obj) => obj instanceof Object && obj.write instanceof Functi
 const concatUint8Arrays = (arrays) => new Uint8Array( // simplified from: https://stackoverflow.com/questions/49129643/how-do-i-merge-an-array-of-uint8arrays
         arrays.reduce((acc, curr) => (acc.push(...curr),acc), [])
     )
+const streamToString = async (stream) => {
+    const returnReader = stream.getReader()
+    let blocks = []
+    while (true) {
+        const {value, done} = await returnReader.read()
+        if (done) {
+            break
+        }
+        blocks.push(value)
+    }
+    const string = new TextDecoder().decode(concatUint8Arrays(output))
+    return string
+}
 
 // TODO: add this once deno supports it
 // export const hasCommand = async (commandName) => {
@@ -516,12 +529,7 @@ export const run = (...args) => {
         // await string
         let processFinishedValue
         if (returnStream) {
-            processFinishedValue = statusPromise.then(async ()=>{
-                const returnReader = returnStream.getReader()
-                const { value } = await returnReader.read()
-                const string = new TextDecoder().decode(value)
-                return string
-            })
+            processFinishedValue = statusPromise.then(()=>streamToString(returnStream))
         // await object
         } else {
             processFinishedValue = statusPromise.then(({ success, code })=>{
