@@ -1,1 +1,16 @@
 hello
+hello
+hello
+Bang
+Bang Bang
+Bang Bang
+pathToGrep is: /usr/bin/grep
+
+miscOutput is: hi1
+bye
+
+process.isDone? is: false
+process.isDone? is: false
+process.isDone? is: false
+process.isDone? is: false
+process.isDone? is: true
