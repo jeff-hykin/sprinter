@@ -53,7 +53,7 @@ const streamToString = async (stream) => {
         }
         blocks.push(value)
     }
-    const string = new TextDecoder().decode(concatUint8Arrays(output))
+    const string = new TextDecoder().decode(concatUint8Arrays(blocks))
     return string
 }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-all
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, throwIfFails, hasCommand } = await import(`./index.js`)
-const { debugValueAsString } = await import("./dapper-debugger.js")
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, throwIfFails, hasCommand } = await import(`../index.js`)
+const { debugValueAsString } = await import("../dapper-debugger.js")
 
 // runs async
 run("echo", "hello")
@@ -28,10 +28,14 @@ await stdin.close()
 const pathToGrep = await run("which", "grep", Out(returnAsString))
 console.debug(`pathToGrep is:`,pathToGrep)
 
+// get output string as return value
+const miscOutput = await run("deno", "eval", "console.log('hi1')\nsetTimeout(()=>console.log('bye'),1000)", Out(returnAsString))
+console.debug(`miscOutput is:`,miscOutput)
+
 // append to a file (give a path or a Deno file object)
 var success = await run("which", "grep",
-    Stdout(Overwrite("./grep_path.txt")),
-    Stderr(AppendTo("./errors.log")),
+    Stdout(Overwrite("tests/grep_path.txt")),
+    Stderr(AppendTo("tests/errors.log")),
 ).success
 
 // report status
